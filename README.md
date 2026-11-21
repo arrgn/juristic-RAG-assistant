@@ -13,7 +13,7 @@
 - языковая модель: `DeepSeek-V4-Flash` в Cloud.ru Foundation Models (OpenAI-совместимый API, оплата в рублях);
 - запуск через Docker Compose: Nginx со статикой клиента и прокси `/api`, сервер, бенчмарк в контейнере;
 - спецификация BM25 и RAG, размеченный срез из 30 статей и базовый прогон BM25 (Recall@3, MRR@3);
-- прогон бенчмарка с моделью `deepseek-1`: Recall@3 = 0,7333, MRR@3 = 1,0, Accuracy = 0,6, Correct Rejection Rate = 1,0; разбор ошибок — [summary.md](app/server/data/benchmark/runs/deepseek-1/summary.md).
+- прогон бенчмарка `deepseek-1` с моделью `DeepSeek-V4-Flash`: Recall@3 = 0,7333, MRR@3 = 1,0, Accuracy = 0,6, Correct Rejection Rate = 1,0; разбор ошибок — [summary.md](app/server/data/benchmark/runs/deepseek-1/summary.md).
 
 Ещё не сделано:
 
@@ -243,24 +243,41 @@ docker compose -f app/docker-compose.yml build
 
 ### 9. Повторить контрольную проверку
 
-Бенчмарк запускается в контейнере `benchmark` с теми же настройками модели, что у сервера в `app/.env`; Node.js на компьютере не нужен. Результаты сохраняются в `app/server/data/benchmark/runs/<имя прогона>/`. Порядок и правила оценки — [benchmark.md](spec/tech/benchmark.md). Команды — из папки `app/`.
+Бенчмарк запускается в контейнере `benchmark` с теми же настройками модели, что у сервера в `app/.env`; Node.js на компьютере не нужен. Результаты сохраняются в `app/server/data/benchmark/runs/<имя прогона>/`; в репозитории уже есть прогоны `bm25-baseline`, `gigachat-1` и `deepseek-1`. Порядок и правила оценки — [benchmark.md](spec/tech/benchmark.md). Команды — из папки `app/`.
 
-1. Прогон с моделью: 15 вопросов, несколько минут, несколько рублей с баланса Cloud.ru.
+**Проверка сохранённых результатов — без ключа Cloud.ru и без оплаты:**
+
+- метрики поиска: прогон с заглушкой вместо модели даёт Recall@3 = 0,7333 и MRR@3 = 1,0, как в отчётах (имя прогона — любое новое):
+
+  ```bash
+  docker compose run --rm -e LLM_PROVIDER=stub benchmark benchmark/run.cjs bm25-check
+  ```
+
+- Accuracy и Correct Rejection Rate по сохранённой ручной оценке прогона `deepseek-1` — 0,6 и 1,0:
+
+  ```bash
+  docker compose run --rm benchmark benchmark/score.cjs deepseek-1
+  ```
+
+**Новый прогон с моделью:**
+
+1. Прогон: 15 вопросов, несколько минут, несколько рублей с баланса Cloud.ru.
 
    ```bash
    docker compose build benchmark
-   docker compose run --rm benchmark benchmark/run.cjs deepseek-1
+   docker compose run --rm benchmark benchmark/run.cjs deepseek-2
    ```
 
-   Первая команда пересобирает образ бенчмарка после изменений в коде. Имя прогона — латиница, цифры, `-` и `_`, каждый раз новое. Если в итоге `degraded` больше 0, часть ответов не получена: причины — в строках «Модель не ответила: …» выше в выводе. Для разбора ошибок в каждой строке `results.jsonl` есть поле `diagnostics`: `llm_error` — сбой модели, `model_refusal` — модель сама ответила, что сведений недостаточно, `rejection` — пояснение отклонено проверкой меток, `filtered_out` — статьи, без которых запрос прошёл фильтр модели. Только метрики поиска, без модели: `docker compose run --rm -e LLM_PROVIDER=stub benchmark benchmark/run.cjs bm25-local`.
+   Первая команда пересобирает образ бенчмарка после изменений в коде. Имя прогона — латиница, цифры, `-` и `_`; папки с таким именем ещё не должно быть, иначе прогон остановится с ошибкой `EEXIST`. Если в итоге `degraded` больше 0, часть ответов не получена: причины — в строках «Модель не ответила: …» выше в выводе. Для разбора ошибок в каждой строке `results.jsonl` есть поле `diagnostics`: `llm_error` — сбой модели, `model_refusal` — модель сама ответила, что сведений недостаточно, `rejection` — пояснение отклонено проверкой меток, `filtered_out` — статьи, без которых запрос прошёл фильтр модели.
 
 2. Оцените ответы вручную. В `results.jsonl` прогона каждая строка — один вопрос: сравните `answer` с `expected_answer` того же вопроса в `app/server/data/benchmark/questions.json` и замените `"review":{"correct":null,"reason":null}` на `"review":{"correct":true,"reason":"…"}` или `false` с причиной. Строки с `"degraded":true` не заполняются и считаются ошибкой.
 
 3. Посчитайте Accuracy и Correct Rejection Rate:
 
    ```bash
-   docker compose run --rm benchmark benchmark/score.cjs deepseek-1
+   docker compose run --rm benchmark benchmark/score.cjs deepseek-2
    ```
+
 4. Запишите четыре метрики и разбор ошибок в `summary.md` прогона по образцу `runs/bm25-baseline/summary.md`. В `config.json` записаны провайдер и модель, но не сервис: укажите в `summary.md`, что модель вызывалась через Cloud.ru Foundation Models. В контейнере нет git, поэтому поле `revision` в `config.json` пустое: SHA коммита тоже впишите в `summary.md`.
 
 На Linux при ошибке `EACCES` добавьте после `run` параметр `--user "$(id -u):$(id -g)"`. Без Docker бенчмарк запускается так: `npm --prefix app/server run benchmark -- <имя прогона>` с переменными окружения из шага 7.
