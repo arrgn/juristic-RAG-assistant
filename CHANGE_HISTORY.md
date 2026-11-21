@@ -6,6 +6,52 @@
 - пункты: кто сделал и что именно, с путями к файлам или папкам;
 - изменения контракта API, корпуса и стека отмечаются явно: что было → что стало.
 
+## 2026-11-21 — Прогон бенчмарка deepseek-1
+
+- Ушаков Леонид (с помощью ИИ-агента): прогон `deepseek-1` (`deepseek-ai/DeepSeek-V4-Flash` в Cloud.ru Foundation Models, 15 вопросов) и ручная оценка ответов: Recall@3 = 0,7333, MRR@3 = 1,0, Accuracy = 0,6 (6 из 10), Correct Rejection Rate = 1,0 (5 из 5), технических сбоев нет. Было (`gigachat-1`): Accuracy = 0,0, Correct Rejection Rate = 0,8, 3 сбоя. Результаты и разбор ошибок — `app/server/data/benchmark/runs/deepseek-1/` (зона Грачева Константина, подтверждается им при ревью pull request; спорные оценки Q02 и Q10 — на его решение).
+- Документация: статус в `README.md`, результат прогона в `spec/tech/architecture.md`, раздел 6.
+
+## 2026-11-21 — Языковая модель DeepSeek-V4-Flash в Cloud.ru, GigaChat удалён
+
+- Ушаков Леонид (с помощью ИИ-агента): языковая модель — `deepseek-ai/DeepSeek-V4-Flash` в Cloud.ru Foundation Models через провайдер `openai_compatible`; обоснование — `spec/tech/architecture.md`, раздел 6. Было: GigaChat API, встроенный фильтр которого отклонял запросы с УК РФ ст. 63 в контексте → стало: Cloud.ru Foundation Models, оплата в рублях.
+- Удалено всё, что относилось к GigaChat: провайдер `gigachat` (получение токена, очередь запросов, сертификат НУЦ Минцифры) в `app/server/src/llm/llm.service.ts` и `app/server/src/main.ts`, папка `app/server/certs/`, тест `app/server/test/gigachat.test.cjs`, переменные `GIGACHAT_SCOPE`, `GIGACHAT_AUTH_URL`, `GIGACHAT_CA_FILE`. Фильтр модели распознаётся по стандартному `finish_reason: content_filter`; повтор без одной из статей сохранён.
+- Сервер при запуске пишет адрес API модели и предупреждает, если `LLM_API_KEY` не задан; ошибка неверного `LLM_PROVIDER` перечисляет допустимые значения. Тесты клиента модели — `app/server/test/llm.test.cjs`.
+- Переменные окружения: в `app/.env.example` `LLM_PROVIDER=openai_compatible`, `LLM_BASE_URL=https://foundation-models.api.cloud.ru/v1`, `LLM_MODEL=deepseek-ai/DeepSeek-V4-Flash`; `app/docker-compose.yml` и `app/server/Dockerfile` без GigaChat. Контракт API не менялся.
+- Документация: раздел «Запуск» в `README.md` (API-ключ Cloud.ru вместо сертификата и ключа GigaChat, решение проблем, бенчмарк), `spec/tech/architecture.md` (разделы 1–3 и 6–9).
+
+## 2026-11-21 — Первый прогон бенчмарка с GigaChat и исправления по его итогам
+
+- Ушаков Леонид (с помощью ИИ-агента): прогон `gigachat-1` (`GigaChat-2-Max`, 15 вопросов) и ручная оценка ответов: Recall@3 = 0,7333, MRR@3 = 1,0, Accuracy = 0,0 (0 из 10), Correct Rejection Rate = 0,8 (4 из 5), технических сбоев — 3. Разбор ошибок — `app/server/data/benchmark/runs/gigachat-1/summary.md`.
+- Все три сбоя — запросы, в контексте которых была УК РФ ст. 63: встроенный фильтр GigaChat отклонял их (`finish_reason: blacklist`). Было: отказ фильтра → сценарий А4 → стало: запрос повторяется без одной из статей по очереди с конца списка, исключённая статья не попадает в `sources` — `app/server/src/chat/chat.service.ts`, `app/server/src/llm/llm.service.ts` (`FilterRefusal`).
+- Из пояснения модели убирается разметка Markdown (контракт API — простой текст); причина отклонения пояснения проверкой меток называет номера абзацев без метки. Тесты — `app/server/test/chat.test.cjs`.
+- `app/server/benchmark/run.cjs` (зона Грачева Константина): в каждую строку `results.jsonl` добавлено поле `diagnostics` (сбой модели, отказ модели, отклонение проверкой меток, статьи, исключённые из-за фильтра) — для разбора ошибок с моделью; подтверждается им при ревью pull request.
+- Документация: `spec/tech/architecture.md` (разделы 2, 6, 9), `README.md` (решение проблем, бенчмарк).
+
+## 2026-11-21 — Подготовка к демонстрации
+
+- Ушаков Леонид (с помощью ИИ-агента): статья попадает в контекст и в `sources`, только если совпала с вопросом хотя бы одним содержательным словом (`app/server/src/chat/function-words.ts`, `app/server/src/chat/chat.service.ts`). Было: «Как приготовить борщ с фасолью и копчёностями?» находил 5 статей по словам «как», «с», «и», а GigaChat отклонял запрос фильтром → стало: «Ничего не найдено» без вызова модели, как в `spec/product/scenarios.md`. На бенчмарке Q14 и Q15 дают «Ничего не найдено»; Recall@3 и MRR@3 не изменились (0,7333 и 1,0). Контекст изменился у Q04, Q08 и Q10; релевантных статей в нём стало меньше только у Q04 (2 → 1 из 3, ушла D13, совпавшая лишь служебными словами); полным ответ на Q04 не был и раньше — D06 в контекст не попадала.
+- Метки в ответе модели вида `[Конституция РФ, ст. 23]` приводятся к `[Конституция РФ ст. 23]`, по которой интерфейс открывает статью; журнал сервера различает отказ самой модели и отклонение пояснения проверкой меток (счётчики без текста ответа). Тесты — `app/server/test/chat.test.cjs`.
+- Nginx: корень сайта без параметра `mock` перенаправляется на `/?mock=off`, чтобы в Docker-сборке чат сразу работал с настоящим API; клиент не менялся — `app/nginx/default.conf.template`.
+- `app/server/benchmark/score.cjs` (зона Грачева Константина): проверка провайдера `config.provider === 'openai_compatible'` заменена на «не `stub`», чтобы оценивались прогоны с GigaChat. Правка внесена по его сообщению «осталось БЯМ прикрутить» и подтверждается им при ревью pull request.
+- Документация: `README.md` (запуск без `?mock=off`, вопросы для демонстрации, причины отказов в журнале), `spec/tech/architecture.md` (разделы 2, 3, 8, 9).
+
+## 2026-11-21 — Языковая модель GigaChat API и инструкция по установке
+
+- Ушаков Леонид (с помощью ИИ-агента): выбрана языковая модель — GigaChat API от Сбера, модель `GigaChat-2-Max`, бесплатный Freemium-режим для физлиц; обоснование — `spec/tech/architecture.md`, раздел 6. Было: модель не выбрана, предполагалась локальная Ollama → стало: GigaChat API.
+- Провайдер `LLM_PROVIDER=gigachat` в `app/server/src/llm/llm.service.ts` и `app/server/src/main.ts`: токен доступа по ключу авторизации с кешированием на 30 минут и обновлением после 401, запросы к модели по одному (один поток Freemium), корневой сертификат НУЦ Минцифры только для запросов к GigaChat (`app/server/certs/`), отказ фильтра модели → сценарий А4. Тесты — `app/server/test/gigachat.test.cjs`.
+- Сервер пишет в журнал причину, по которой модель не ответила (сценарий А4): `app/server/src/chat/chat.service.ts`.
+- Docker: в образ сервера добавлены `certs/` и `benchmark/`, новый сервис `benchmark` (профиль `benchmark`) для прогона бенчмарка в контейнере; сервис `ollama`, его том и запись `host.docker.internal` удалены — `app/server/Dockerfile`, `app/docker-compose.yml`.
+- Переменные окружения: добавлены `GIGACHAT_SCOPE`, `GIGACHAT_AUTH_URL`, `GIGACHAT_CA_FILE`; удалена `OLLAMA_CONTEXT_LENGTH`; в `app/.env.example` `LLM_PROVIDER=gigachat`, `LLM_TIMEOUT_MS=60000`. Контракт API не менялся.
+- Документация: раздел «Запуск» в `README.md` — пошаговая инструкция для нового участника (сертификат, ключ GigaChat, запуск, решение проблем, бенчмарк в контейнере); `spec/tech/architecture.md`, разделы 1–3 и 6–9.
+
+## 2026-11-20 — Интеграция: Docker Compose, Nginx, запуск
+
+- Ушаков Леонид (с помощью ИИ-агента): `app/docker-compose.yml` — сервисы `server`, `nginx` и необязательный `ollama` (профиль `ollama`); `app/server/Dockerfile`, `app/nginx/Dockerfile`, шаблон `app/nginx/default.conf.template` и скрипт `app/nginx/render-config.sh` (порт сервера и таймаут прокси из `SERVER_PORT` и `LLM_TIMEOUT_MS`); `.dockerignore`; `app/.env.example`; корневой `.gitignore`.
+- Состав контейнеров: было — три сервиса (`nginx`, `client`, `server`); стало — два постоянно работающих (`nginx`, `server`). Клиент собирается в статику на первом этапе образа `nginx`, отдельный Dockerfile клиента не нужен.
+- Сервер: пустая переменная окружения равносильна незаданной; относительный `CORPUS_PATH` отсчитывается от `app/server`; понятная ошибка при неверном `LLM_BASE_URL`; журнал `POST /api/chat` без текста вопросов (код, длительность, число статей); корректная остановка по SIGTERM — `app/server/src/main.ts`, `app/server/src/llm/llm.service.ts`. Тест контракта API по HTTP — `app/server/test/api.test.cjs`.
+- Новая переменная окружения `OLLAMA_CONTEXT_LENGTH` (только для сервиса `ollama`). Контракт API не менялся.
+- Документация: `spec/tech/architecture.md` (разделы 1–4 и 6–9 приведены к фактической реализации), `README.md` (статус, структура, «Запуск»).
+
 ## 2026-11-20 — Тест выдачи BM25
 
 - Добавлена проверка топ-3, Recall@3 и обратного ранга на вопросе Q03 из контрольного набора.

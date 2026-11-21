@@ -1,0 +1,58 @@
+# Запуск всех сервисов из папки app/: docker compose up --build -d
+# Настройки — app/.env (образец app/.env.example), описание — spec/tech/architecture.md.
+# Незаданная или пустая переменная означает значение по умолчанию сервера.
+
+name: juristic-rag-assistant
+
+# Переменные сервера: общие для server и benchmark.
+x-server-environment: &server-environment
+  SERVER_PORT: ${SERVER_PORT:-}
+  CORPUS_MODE: ${CORPUS_MODE:-}
+  CORPUS_PATH: ${CORPUS_PATH:-}
+  MAX_CONTEXT_DOCS: ${MAX_CONTEXT_DOCS:-}
+  MIN_SCORE: ${MIN_SCORE:-}
+  LLM_PROVIDER: ${LLM_PROVIDER:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-}
+  LLM_CONTEXT_BYTES: ${LLM_CONTEXT_BYTES:-}
+
+services:
+  server:
+    build: ./server
+    init: true
+    environment: *server-environment
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.SERVER_PORT || 3000) + '/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-}
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    depends_on:
+      server:
+        condition: service_healthy
+
+  # Бенчмарк в контейнере, с теми же настройками модели, что у сервера:
+  # docker compose run --rm benchmark benchmark/run.cjs <имя прогона>
+  # docker compose run --rm benchmark benchmark/score.cjs <имя прогона>
+  # Результаты сохраняются в app/server/data/benchmark/runs/ на компьютере.
+  benchmark:
+    build: ./server
+    profiles: [benchmark]
+    init: true
+    environment: *server-environment
+    entrypoint: ["node"]
+    command: ["benchmark/run.cjs"]
+    volumes:
+      - ./server/data/benchmark/runs:/app/data/benchmark/runs

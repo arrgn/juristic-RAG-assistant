@@ -80,6 +80,13 @@ async function run() {
         context_article_ids: trace?.contextArticleIds ?? null,
         degraded: error !== null || trace?.degradation === true,
         error,
+        // Причина отказа или сбоя модели для разбора ошибок; текста ответа не содержит.
+        diagnostics: trace ? {
+          llm_error: trace.error ?? null,
+          rejection: trace.rejection ?? null,
+          model_refusal: trace.modelRefusal ?? false,
+          filtered_out: trace.filteredOut ?? [],
+        } : null,
         review: { correct: null, reason: null },
       });
     }

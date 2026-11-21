@@ -6,7 +6,7 @@ const runId = process.argv[2] ?? '';
 assert.match(runId, /^[\w-]+$/, 'Укажите ID прогона');
 const directory = join(__dirname, '../data/benchmark/runs', runId);
 const config = JSON.parse(readFileSync(join(directory, 'config.json'), 'utf8'));
-assert.equal(config.provider, 'openai_compatible', 'Оценка качества требует прогона с LLM');
+assert.notEqual(config.provider, 'stub', 'Оценка качества требует прогона с LLM');
 const rows = readFileSync(join(directory, 'results.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
 assert.equal(rows.length, 15);
 assert.equal(new Set(rows.map(({ id }) => id)).size, 15);

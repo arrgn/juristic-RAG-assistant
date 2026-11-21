@@ -1,0 +1,64 @@
+# Шаблон конфигурации Nginx (spec/tech/architecture.md, раздел 8).
+# Порт сервера и таймаут прокси подставляет render-config.sh при запуске контейнера.
+
+server {
+    listen 80;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+    index index.html;
+    # Перенаправления относительные: порт снаружи (NGINX_PORT) Nginx в контейнере не знает.
+    absolute_redirect off;
+
+    # Встроенный DNS Docker. Адрес сервиса server определяется при запросе,
+    # поэтому Nginx продолжает работать после пересоздания контейнера сервера.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy same-origin always;
+
+    gzip on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    # API: путь передаётся серверу без изменений (/api/chat -> server:<порт>/api/chat).
+    # Таймаут чтения больше LLM_TIMEOUT_MS: при медленной модели сервер успевает
+    # вернуть ответ сценария А4, а не 504 от Nginx.
+    location /api/ {
+        set $api_upstream http://server:${SERVER_PORT};
+        proxy_pass $api_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout ${PROXY_TIMEOUT}s;
+        proxy_read_timeout ${PROXY_TIMEOUT}s;
+        client_max_body_size 1m;
+    }
+
+    # Файлы сборки Vite содержат хеш в имени, поэтому кешируются надолго.
+    location /assets/ {
+        expires 1y;
+        try_files $uri =404;
+    }
+
+    # Клиент без параметра адреса показывает демонстрационные ответы. Корень сайта
+    # открывается с ?mock=off, и чат сразу работает с настоящим API; адреса с любым
+    # значением mock (например, ?mock=offline) не меняются.
+    location = / {
+        if ($arg_mock = "") {
+            return 302 /?mock=off;
+        }
+        expires -1;
+        try_files /index.html =404;
+    }
+
+    # Остальное — статика клиента; неизвестный путь отдаёт index.html.
+    location / {
+        expires -1;
+        try_files $uri $uri/ /index.html;
+    }
+}
