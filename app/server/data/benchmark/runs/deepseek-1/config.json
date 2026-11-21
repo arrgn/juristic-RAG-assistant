@@ -1,0 +1,43 @@
+{
+  "revision": null,
+  "measured_at": "2026-11-20T23:42:37.145Z",
+  "sha256": {
+    "articles.json": "98c924de938b036abbf5499feba40e88dbdbdf08f0a2ab77be80f5f4db619ba2",
+    "documents.json": "2d36d08abc14c2d3ed08123deca8e6634166a04210e0d2f27b2b3f3ecb964d92",
+    "questions.json": "bab438efd4090d0dcade8447fffba6bd01d6b15845eba13e3efc91f705088f4a",
+    "sources.json": "9c921f6044187f275beb3ab3a745958cc61053a57d53dd1d47cbacc5a47b5f4e"
+  },
+  "built_code_sha256": {
+    "corpus/corpus.js": "614144169c7690a49cafe2ac434d27d55f31ef1e7e3fee9daaecfb2ef76b4e4a",
+    "search/bm25.js": "b35e5ee74ecd405b6c6dcdaa8c1306803f644a2447069ea81cb5a3eadab3fd50",
+    "search/search.service.js": "44ef976d25c85626f9e8056a310cee55b529691bcf0248cc2941de5f6f7619bc",
+    "llm/prompts.js": "ae06f01ecfdbf730b7d5ff2d15f37237bd2bb66559b59a4c18e07a8397777a60",
+    "llm/llm.service.js": "4f38756b55d0c7bfdff93c4d0305f0ffece1ac05fe86e2b1c0121567f3663e9d",
+    "chat/chat.service.js": "40ccb69ec51d73d0b42dc990f960573b73a3b0182dcc7a0cb3849a49bc26f794",
+    "main.js": "bebb58d938390f8ca7c3ba42858dbdf28ff7c1901cc9a60a2864848c61e655ed"
+  },
+  "source_attachments": [
+    {
+      "file": "0001202210060013.pdf",
+      "sha256": "f17dcd8054ebedbd4b688e47a3f0e88999d678e9087710f0135c80f55d464510",
+      "edition_date": "2022-10-04"
+    },
+    {
+      "file": "КРФ от 13.06.1996 № 63-ФЗ.doc",
+      "sha256": "0dec67f0dadd8790947dfaa620c96e91f18642253b4fdb239602636b17f19999",
+      "edition_date": "2026-08-15"
+    }
+  ],
+  "k1": 1.2,
+  "b": 0.75,
+  "search_depth": 3,
+  "min_score": 0,
+  "max_context_docs": 5,
+  "context_bytes": 24000,
+  "tokenization": "NFC, lower case, ё → е, Unicode letters and digits",
+  "segmentation": "Up to 400 tokens or groups of numbered paragraphs",
+  "provider": "openai_compatible",
+  "model": "deepseek-ai/DeepSeek-V4-Flash",
+  "model_version": null,
+  "generation": "Параметры по умолчанию у провайдера"
+}

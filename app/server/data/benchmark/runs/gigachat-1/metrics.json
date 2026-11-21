@@ -1,0 +1,8 @@
+{
+  "recall_at_3": 0.7333333333333333,
+  "mrr_at_3": 1,
+  "accuracy": null,
+  "correct_rejection_rate": null,
+  "degraded": 3,
+  "traps_with_hits": 5
+}
